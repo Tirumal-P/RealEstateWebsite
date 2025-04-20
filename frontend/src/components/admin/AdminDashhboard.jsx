@@ -42,7 +42,7 @@ const AdminDashboard = () => {
         );
         // const statsResponse = await fetch('/api/admin/stats');
         console.log();
-        if (!statsResponse.status==200) {
+        if (!statsResponse.status == 200) {
           throw new Error("Failed to fetch statistics");
         }
         const statsData = await statsResponse.data;
@@ -62,7 +62,7 @@ const AdminDashboard = () => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // const ownersResponse = await fetch('/api/admin/owners/pending');
-        if (!ownersResponse.status==200) {
+        if (!ownersResponse.status == 200) {
           throw new Error("Failed to fetch pending owners");
         }
         const ownersData = await ownersResponse.data;
@@ -74,7 +74,7 @@ const AdminDashboard = () => {
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // const realtorsResponse = await fetch('/api/admin/realtors/pending');
-        if (!realtorsResponse.status==200) {
+        if (!realtorsResponse.status == 200) {
           throw new Error("Failed to fetch pending realtors");
         }
         const realtorsData = await realtorsResponse.data;
@@ -109,15 +109,13 @@ const AdminDashboard = () => {
 
   const handleApproveUser = async (userId, userType) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/approve`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userType }),
-      });
+      const response = await axios.patch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/admin/users/${userId}/approve`,
+        { userType:userType },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      if (!response.ok) {
+      if (!response.status == 200) {
         throw new Error("Failed to approve user");
       }
 
@@ -142,15 +140,13 @@ const AdminDashboard = () => {
 
   const handleRejectUser = async (userId, userType) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/reject`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ userType }),
-      });
+      const response = await axios.patch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/admin/users/${userId}/reject`,
+        { userType },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-      if (!response.ok) {
+      if (!response.status==200) {
         throw new Error("Failed to reject user");
       }
 

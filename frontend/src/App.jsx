@@ -26,30 +26,40 @@ import AdminLogin from "./pages/Admin/AdminLogin";
 
 import "bootstrap/dist/css/bootstrap.min.css";
 import AdminDashboard from "./components/admin/AdminDashhboard";
+import OwnersPage from "./components/owner/ownerDashboard";
 // import './assets/css/styles.css';
 
 function App() {
   const AdminRoute = ({ children }) => {
-    const { token:isAuthenticated, user:userType } = useAuth();
-  
+    const { token: isAuthenticated, user: userType } = useAuth();
+
     if (!isAuthenticated) {
       // Redirect to login if not authenticated
       return <Navigate to="/admin" replace />;
     }
-  
-    if (userType !== 'admin') {
+
+    if (userType !== "admin") {
       // Redirect to home or show unauthorized access
       return <Navigate to="/" replace />;
     }
-  
+
     return children;
   };
-  // const AdminRoute = ({ children }) => {
-  //   const { user, loading } = useAuth();
 
-  //   // if (loading) return <div>Loading...</div>;
-  //   return user && user.role === "admin" ? children : <Navigate to="/" />;
-  // };
+  //owner protected route
+  const OwnerRoute = ({ children }) => {
+    const { token: isAuthenticated, user: userType } = useAuth();
+
+    if (!isAuthenticated) {
+      return <Navigate to="/login" replace />;
+    }
+
+    if (userType !== "owner") {
+      return <Navigate to="/" replace />;
+    }
+
+    return children;
+  };
 
   return (
     <Router>
@@ -70,13 +80,21 @@ function App() {
           <Route path="register" element={<Register />} />
           <Route path="admin" element={<AdminLogin />} />
         </Route>
-        <Route 
-          path="/admin/dashboard" 
+        <Route
+          path="/admin/dashboard"
           element={
             <AdminRoute>
               <AdminDashboard />
             </AdminRoute>
-          } 
+          }
+        />
+        <Route
+          path="/owner/dashboard"
+          element={
+            <OwnerRoute>
+              <OwnersPage />
+            </OwnerRoute>
+          }
         />
 
         {/* Dashboard routes - protected */}

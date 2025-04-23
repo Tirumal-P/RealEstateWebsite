@@ -16,7 +16,7 @@ const AuthLayout = () => {
     if (userType === 'admin') {
       return <Navigate to="/admin/dashboard" />;
     }
-    return <Navigate to="/properties" />;
+    return <Navigate to="/owner/dashboard" />;
   }
 
   return (

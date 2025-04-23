@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   FaUser,
   FaHome,
@@ -11,7 +11,7 @@ import {
 } from "react-icons/fa";
 import LoadingSpinner from "../../common/LoadingSpinner";
 import Alert from "../../common/Alert";
-import axios from "axios";
+import api from "../../api/axiosInstance";
 import { useAuth } from "../../hooks/useAuth";
 
 const AdminDashboard = () => {
@@ -29,15 +29,15 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const { token, logout } = useAuth();
-  console.log(token);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
         // Fetch statistics
-        const statsResponse = await axios.get(
-          `${import.meta.env.VITE_BACKEND_URL}/api/admin/stats`,
+        const statsResponse = await api.get(
+          `/admin/stats`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // const statsResponse = await fetch('/api/admin/stats');
@@ -57,8 +57,8 @@ const AdminDashboard = () => {
         // setRecentUsers(usersData);
 
         // Fetch pending owners
-        const ownersResponse = await axios.get(
-          `${import.meta.env.VITE_BACKEND_URL}/api/admin/owners/pending`,
+        const ownersResponse = await api.get(
+          `/admin/owners/pending`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // const ownersResponse = await fetch('/api/admin/owners/pending');
@@ -69,8 +69,8 @@ const AdminDashboard = () => {
         setPendingOwners(ownersData);
 
         // Fetch pending realtors
-        const realtorsResponse = await axios.get(
-          `${import.meta.env.VITE_BACKEND_URL}/api/admin/realtors/pending`,
+        const realtorsResponse = await api.get(
+          `/admin/realtors/pending`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         // const realtorsResponse = await fetch('/api/admin/realtors/pending');
@@ -109,8 +109,8 @@ const AdminDashboard = () => {
 
   const handleApproveUser = async (userId, userType) => {
     try {
-      const response = await axios.patch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/admin/users/${userId}/approve`,
+      const response = await api.patch(
+        `/admin/users/${userId}/approve`,
         { userType:userType },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -140,8 +140,8 @@ const AdminDashboard = () => {
 
   const handleRejectUser = async (userId, userType) => {
     try {
-      const response = await axios.patch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/admin/users/${userId}/reject`,
+      const response = await api.patch(
+        `/admin/users/${userId}/reject`,
         { userType },
         { headers: { Authorization: `Bearer ${token}` } }
       );

@@ -3,7 +3,7 @@ const Realtor = require("../models/Realtor");
 
 exports.approveUser = async (req, res) => {
   try {
-    if (req.params.userType == "owner") {
+    if (req.body.userType == "owner") {
       const owner = await Owner.findByIdAndUpdate(
         req.params.id,
         { status: "approved" },

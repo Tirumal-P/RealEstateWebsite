@@ -1,50 +1,65 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Form, Button, Alert } from 'react-bootstrap';
-import './Login.css';
+import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Form, Button, Alert } from "react-bootstrap";
+import "./Login.css";
+import api from "../../api/axiosInstance";
+
+import { useAuth } from "../../hooks/useAuth";
 
 const Login = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    userType: 'customer'
+    email: "",
+    password: "",
+    userType: "customer",
   });
-  
-  const [error, setError] = useState('');
+
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
+    setFormData((prevState) => ({
       ...prevState,
-      [name]: value
+      [name]: value,
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
-    
+
     try {
-      // Simulate API call for login
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      const response = await api.post(
+        `/auth/${
+          formData.userType
+        }/login`,
+        {
+          email: formData.email,
+          password: formData.password,
+        }
+      );
+
       // For demo purposes - in real app, you'd validate with your backend
-      if (formData.email === 'demo@example.com' && formData.password === 'password') {
-        // Store user info in localStorage
-        localStorage.setItem('token', 'sample-jwt-token');
-        localStorage.setItem('userRole', formData.userType);
-        
-        // Redirect to dashboard
-        navigate('/dashboard');
+      if (response.status == 200) {
+        const { token } = response.data;
+
+        // Store the token in localStorage
+        login(token, formData.userType, response.data.user._id);
+
+        if (formData.userType === "owner") {
+          navigate("/owner/dashboard");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
-        setError('Invalid email or password');
+        setError("Invalid email or password");
       }
     } catch (error) {
-      setError('Login failed. Please try again.');
-      console.error('Login error:', error);
+      setError("Login failed. Please try again.");
+      console.error("Login error:", error);
     } finally {
       setLoading(false);
     }
@@ -56,9 +71,9 @@ const Login = () => {
         <h2>Sign In</h2>
         <p className="text-muted">Access your account</p>
       </div>
-      
+
       {error && <Alert variant="danger">{error}</Alert>}
-      
+
       <Form onSubmit={handleSubmit}>
         <Form.Group className="mb-3" controlId="email">
           <Form.Label>Email Address</Form.Label>
@@ -71,7 +86,7 @@ const Login = () => {
             required
           />
         </Form.Group>
-        
+
         <Form.Group className="mb-3" controlId="password">
           <Form.Label>Password</Form.Label>
           <Form.Control
@@ -83,10 +98,10 @@ const Login = () => {
             required
           />
         </Form.Group>
-        
+
         <Form.Group className="mb-4" controlId="userType">
           <Form.Label>I am a</Form.Label>
-          <Form.Select 
+          <Form.Select
             name="userType"
             value={formData.userType}
             onChange={handleChange}
@@ -96,18 +111,18 @@ const Login = () => {
             <option value="realtor">Realtor</option>
           </Form.Select>
         </Form.Group>
-        
+
         <div className="d-grid">
-          <Button 
-            variant="primary" 
-            type="submit" 
+          <Button
+            variant="primary"
+            type="submit"
             className="mb-3"
             disabled={loading}
           >
-            {loading ? 'Signing In...' : 'Sign In'}
+            {loading ? "Signing In..." : "Sign In"}
           </Button>
         </div>
-        
+
         <div className="text-center">
           <p>
             Don't have an account? <Link to="/register">Sign Up</Link>

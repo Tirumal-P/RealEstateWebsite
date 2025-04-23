@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../../api/axiosInstance';
 import { useAuth } from '../../hooks/useAuth';
 import Alert from '../../common/Alert'; // Assuming Alert is in the same directory
 
@@ -17,7 +17,7 @@ const AdminLogin = () => {
 
     try {
       // Make sure to replace with your actual API base URL
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/auth/admin/login`, {
+      const response = await api.post(`/auth/admin/login`, {
         adminId,
         password
       });

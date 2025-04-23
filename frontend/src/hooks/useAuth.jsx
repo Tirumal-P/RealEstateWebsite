@@ -9,6 +9,9 @@ export const AuthProvider = ({ children }) => {
   
   // Add a user object based on the token (or null if no token)
   const [user, setUser] = useState(localStorage.getItem('user'));
+
+  // Add a user object based on the token (or null if no token)
+  const [userId, setUserId] = useState(localStorage.getItem('userId'));
 //   useState(() => {
 //     if (token) {
 //       try {
@@ -31,16 +34,19 @@ export const AuthProvider = ({ children }) => {
   // Add loading state for auth checks
   const [loading, setLoading] = useState(false);
 
-  const login = (token,user) => {
+  const login = (token,user,userId) => {
     localStorage.setItem('token', token);
     setToken(token);
     localStorage.setItem('user',user);
-    setUser(user)
+    setUser(user);
+    localStorage.setItem('userId',userId);
+    setUserId(userId);
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.setItem('user',user);
+    localStorage.setItem('userId',userId);
     setToken(null);
     setUser(null);
   };
@@ -49,6 +55,7 @@ export const AuthProvider = ({ children }) => {
   const contextValue = {
     token,
     user,
+    userId,
     loading,
     login,
     logout,

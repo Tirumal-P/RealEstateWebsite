@@ -8,6 +8,7 @@ module.exports = (req, res, next) => {
     console.log(token    )
     const decoded = jwt.verify(token.replace('Bearer ', ''), process.env.JWT_SECRET);
     req.user = decoded;
+    console.log(req.user);
     next();
   } catch (ex) {
     console.log(ex);

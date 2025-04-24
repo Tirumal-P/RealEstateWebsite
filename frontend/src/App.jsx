@@ -27,6 +27,7 @@ import AdminLogin from "./pages/Admin/AdminLogin";
 import "bootstrap/dist/css/bootstrap.min.css";
 import AdminDashboard from "./components/admin/AdminDashhboard";
 import OwnersPage from "./components/owner/ownerDashboard";
+import CustomerPage from "./components/customerDashboard";
 // import './assets/css/styles.css';
 
 function App() {
@@ -56,6 +57,17 @@ function App() {
 
     if (userType !== "owner") {
       return <Navigate to="/" replace />;
+    }
+
+    return children;
+  };
+
+  //Customer protected route
+  const CustomerRoute = ({ children }) => {
+    const { token: isAuthenticated, user: userType } = useAuth();
+
+    if (!isAuthenticated || userType !== "customer") {
+      return <Navigate to="/login" replace />;
     }
 
     return children;
@@ -94,6 +106,16 @@ function App() {
             <OwnerRoute>
               <OwnersPage />
             </OwnerRoute>
+          }
+        />
+
+        {/* Customer Dashboard - protected */}
+        <Route
+          path="/customer/dashboard"
+          element={
+            <CustomerRoute>
+              <CustomerPage />
+            </CustomerRoute>
           }
         />
 

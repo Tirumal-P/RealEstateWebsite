@@ -51,8 +51,8 @@ const Login = () => {
 
         if (formData.userType === "owner") {
           navigate("/owner/dashboard");
-        } else {
-          navigate("/dashboard");
+        } else if(formData.userType === "customer") {
+          navigate("/customer/dashboard");
         }
       } else {
         setError("Invalid email or password");

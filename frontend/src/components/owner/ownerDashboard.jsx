@@ -1,11 +1,85 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 import api from "../../api/axiosInstance";
+import SignaturePad from "../../common/SignaturePad";
+
+const DisplaySignatures = ({ contract }) => {
+  const hasCustomerSignature = contract.signatures?.customer && contract.signatures.customer !== 'null';
+  const hasOwnerSignature = contract.signatures?.owner && contract.signatures.owner !== 'null';
+  
+  return (
+    <div className="signatures-display mb-4">
+      <h5 className="mb-3">Contract Signatures</h5>
+      
+      <div className="row">
+        <div className="col-md-6 mb-3">
+          <div className="card">
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <h6 className="mb-0">Customer Signature</h6>
+              {hasCustomerSignature ? (
+                <span className="badge bg-success">Signed</span>
+              ) : (
+                <span className="badge bg-warning">Not signed yet</span>
+              )}
+            </div>
+            <div className="card-body">
+              {hasCustomerSignature ? (
+                <img 
+                  src={contract.signatures.customer} 
+                  alt="Customer Signature" 
+                  className="img-fluid" 
+                  style={{ maxHeight: '100px', border: '1px solid #eee', borderRadius: '4px' }}
+                />
+              ) : (
+                <div className="text-muted text-center p-3">
+                  No signature available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        <div className="col-md-6 mb-3">
+          <div className="card">
+            <div className="card-header d-flex justify-content-between align-items-center">
+              <h6 className="mb-0">Owner Signature</h6>
+              {hasOwnerSignature ? (
+                <span className="badge bg-success">Signed</span>
+              ) : (
+                <span className="badge bg-warning">Not signed yet</span>
+              )}
+            </div>
+            <div className="card-body">
+              {hasOwnerSignature ? (
+                <img 
+                  src={contract.signatures.owner} 
+                  alt="Owner Signature" 
+                  className="img-fluid" 
+                  style={{ maxHeight: '100px', border: '1px solid #eee', borderRadius: '4px' }}
+                />
+              ) : (
+                <div className="text-muted text-center p-3">
+                  No signature available
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const OwnersPage = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("uploadProperty");
   const [properties, setProperties] = useState([]);
   const [realtors, setRealtors] = useState([]);
+  const [contracts, setContracts] = useState([]);
+  const [selectedContract, setSelectedContract] = useState(null);
+  const [showContractDetails, setShowContractDetails] = useState(false);
+  const [signature, setSignature] = useState(null);
   const [propertyData, setPropertyData] = useState({
     name: "",
     type: "",
@@ -18,32 +92,38 @@ const OwnersPage = () => {
   const [imageFiles, setImageFiles] = useState([]);
   const { token, userId, logout } = useAuth();
 
-  // Fetch properties and realtors on component mount
+  // Fetch properties, realtors, and contracts on component mount
   useEffect(() => {
-    // Simulate fetching data
     const fetchData = async () => {
       try {
-        // Mock data fetch
+        // Fetch owner's properties
         const properties = await api.get(`/owner/${userId}/properties`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
+        // Fetch available realtors
         const realtors = await api.get(`/owner/realtors`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        console.log(properties);
-        console.log(realtors);
+        // Fetch owner's contracts
+        const contracts = await api.get(`/owner/${userId}/contracts`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-        setProperties(properties.data.data);
-        setRealtors(realtors.data.data);
-        console.log();
+        // console.log(properties.data.properties);
+        // console.log(realtors);
+        // console.log(contracts);
+
+        setProperties(properties.data.properties || []);
+        setRealtors(realtors.data.data || []);
+        setContracts(contracts.data.data || []);
       } catch (error) {
         console.error("Error fetching data:", error);
       }
     };
     fetchData();
-  }, []);
+  }, [userId, token]);
 
   // Handle input changes
   const handleInputChange = (e) => {
@@ -64,6 +144,11 @@ const OwnersPage = () => {
   const removeImage = (index) => {
     const newImageFiles = imageFiles.filter((_, i) => i !== index);
     setImageFiles(newImageFiles);
+  };
+
+  // Handle signature change
+  const handleSignatureChange = (signatureData) => {
+    setSignature(signatureData);
   };
 
   // Submit property
@@ -142,15 +227,128 @@ const OwnersPage = () => {
     }
   };
 
-  // View contract
-  const handleViewContract = (property) => {
-    // Simulate contract viewing
-    console.log("View contract for property:", property);
-    alert(`Viewing contract for ${property.name}`);
+  // Handle contract viewing
+  const handleViewContract = (contract) => {
+    setSelectedContract(contract);
+    setSignature(null); // Reset signature when viewing a new contract
+    setShowContractDetails(true);
+  };
+
+  // Handle signing a contract
+  const handleSignContract = async (contractId) => {
+    try {
+      // Check if signature exists
+      if (!signature) {
+        alert("Please sign the contract before submitting.");
+        return;
+      }
+      
+      // Send request to sign the contract with signature
+      const response = await api.put(
+        `/owner/${userId}/contracts/${contractId}/sign`,
+        { signature: signature },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success) {
+        // Update contract status locally
+        setContracts(contracts.map(contract => 
+          contract._id === contractId 
+            ? { 
+                ...contract, 
+                status: "active", 
+                signatures: { ...contract.signatures, owner: signature }
+              } 
+            : contract
+        ));
+        
+        alert("Contract signed successfully! The contract is now active.");
+        setShowContractDetails(false);
+        
+        // Reset signature
+        setSignature(null);
+      }
+    } catch (error) {
+      console.error("Error signing contract:", error);
+      alert(`Failed to sign contract: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  // Handle rejecting a contract
+  const handleRejectContract = async (contractId) => {
+    try {
+      // Confirm rejection
+      const confirmed = window.confirm(
+        "Are you sure you want to reject this contract? This action cannot be undone."
+      );
+
+      if (!confirmed) return;
+
+      // Send request to reject the contract
+      const response = await api.put(
+        `/owner/${userId}/contracts/${contractId}/reject`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success) {
+        // Update contract status locally
+        setContracts(contracts.map(contract => 
+          contract._id === contractId 
+            ? { ...contract, status: "cancelled" } 
+            : contract
+        ));
+        
+        alert("Contract rejected successfully.");
+        setShowContractDetails(false);
+      }
+    } catch (error) {
+      console.error("Error rejecting contract:", error);
+      alert(`Failed to reject contract: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  // Get contract status label
+  const getContractStatusLabel = (status) => {
+    switch (status) {
+      case "pending_customer":
+        return "Waiting for Customer Approval";
+      case "pending_owner":
+        return "Waiting for Your Approval";
+      case "active":
+        return "Active";
+      case "completed":
+        return "Completed";
+      case "cancelled":
+        return "Cancelled";
+      default:
+        return "Pending";
+    }
+  };
+
+  // Get contract status badge color
+  const getContractStatusColor = (status) => {
+    switch (status) {
+      case "pending_customer":
+        return "warning";
+      case "pending_owner":
+        return "warning";
+      case "active":
+        return "success";
+      case "completed":
+        return "secondary";
+      case "cancelled":
+        return "danger";
+      default:
+        return "secondary";
+    }
   };
 
   // Handle logout
-
   const handleLogout = () => {
     const confirmLogout = window.confirm("Are you sure you want to log out?");
 
@@ -158,7 +356,7 @@ const OwnersPage = () => {
       // Call logout method from useAuth
       logout();
 
-      // Redirect to admin login page
+      // Redirect to login page
       navigate("/login");
     }
   };
@@ -166,16 +364,15 @@ const OwnersPage = () => {
   return (
     <div className="container-fluid">
       {/* Header with Logout */}
-
       <div className="row mb-3">
         <div className="col-12 d-flex justify-content-between align-items-center">
           <h1>Property Owner Dashboard</h1>
-
           <button className="btn btn-outline-danger" onClick={handleLogout}>
             Logout
           </button>
         </div>
       </div>
+      
       {/* Horizontal Tabs Navigation */}
       <div className="row">
         <div className="col-12">
@@ -198,6 +395,19 @@ const OwnersPage = () => {
                 onClick={() => setActiveTab("myProperties")}
               >
                 My Properties
+              </button>
+            </li>
+            <li className="nav-item">
+              <button
+                className={`nav-link ${
+                  activeTab === "contracts" ? "active" : ""
+                }`}
+                onClick={() => setActiveTab("contracts")}
+              >
+                Contracts
+                {contracts && contracts.some(c => c.status === "pending_owner") && (
+                  <span className="badge bg-danger ms-2">New</span>
+                )}
               </button>
             </li>
           </ul>
@@ -353,7 +563,7 @@ const OwnersPage = () => {
         {activeTab === "myProperties" && (
           <div className="tab-pane active">
             <h2 className="mb-4">My Properties</h2>
-            {properties && properties.length != 0 ? (
+            {properties && properties.length !== 0 ? (
               <div className="row">
                 {properties.map((property) => (
                   <div key={property._id} className="col-md-4 mb-4">
@@ -383,7 +593,18 @@ const OwnersPage = () => {
                         )}
                         <button
                           className="btn btn-outline-primary"
-                          onClick={() => handleViewContract(property)}
+                          onClick={() => {
+                            // Find associated contract if exists
+                            const propertyContract = contracts.find(
+                              contract => contract.property === property._id
+                            );
+                            
+                            if (propertyContract) {
+                              handleViewContract(propertyContract);
+                            } else {
+                              alert("No contract available for this property yet.");
+                            }
+                          }}
                         >
                           View Contract
                         </button>
@@ -393,11 +614,270 @@ const OwnersPage = () => {
                 ))}
               </div>
             ) : (
-              <div>No properties associated for you</div>
+              <div className="alert alert-info">No properties associated with you</div>
+            )}
+          </div>
+        )}
+
+        {/* Contracts Tab */}
+        {activeTab === "contracts" && (
+          <div className="tab-pane active">
+            <h2 className="mb-4">My Contracts</h2>
+            {contracts && contracts.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Property</th>
+                      <th>Type</th>
+                      <th>Customer</th>
+                      <th>Created Date</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {contracts.map((contract) => {
+                      const property = properties.find(p => p._id === contract.property._id) || {};
+                      
+                      return (
+                        <tr key={contract._id}>
+                          <td>{property.name || "Unknown Property"}</td>
+                          <td>{contract.type === "rental" ? "Rental" : "Sale"}</td>
+                          <td>{contract.customer?.name || "Unknown Customer"}</td>
+                          <td>{new Date(contract.contractDate).toLocaleDateString()}</td>
+                          <td>
+                            <span className={`badge bg-${getContractStatusColor(contract.status)}`}>
+                              {getContractStatusLabel(contract.status)}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => handleViewContract(contract)}
+                            >
+                              View Contract
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="alert alert-info">
+                You don't have any contracts yet.
+              </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Contract Details Modal */}
+      {showContractDetails && selectedContract && (
+        <div
+          className="modal"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {selectedContract.type === "rental" ? "Rental" : "Sale"} Contract
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowContractDetails(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Property</h6>
+                    <p>{properties.find(p =>{ 
+                      console.log(p);
+                      return p._id === selectedContract.property._id})?.name || "Unknown Property"}</p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Status</h6>
+                    <span className={`badge bg-${getContractStatusColor(selectedContract.status)}`}>
+                      {getContractStatusLabel(selectedContract.status)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Contract Date</h6>
+                    <p>{new Date(selectedContract.contractDate).toLocaleDateString()}</p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Contract Type</h6>
+                    <p>{selectedContract.type === "rental" ? "Rental Agreement" : "Sales Contract"}</p>
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Start Date</h6>
+                    <p>{new Date(selectedContract.startDate).toLocaleDateString()}</p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>End Date</h6>
+                    <p>{new Date(selectedContract.endDate).toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>{selectedContract.type === "rental" ? "Monthly Rent" : "Sale Price"}</h6>
+                    <p>${selectedContract.salePrice?.toLocaleString() || "0"}</p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Deposit Amount</h6>
+                    <p>${selectedContract.depositAmount?.toLocaleString() || "0"}</p>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <h6>Payment Terms</h6>
+                  <p>{selectedContract.paymentTerms || "Not specified"}</p>
+                </div>
+
+                {/* Loan Details Section - Only shown for sale contracts */}
+                {selectedContract.type === "sale" && (
+                  <div className="loan-details-section mb-4">
+                    <h5 className="mb-3">Loan Details</h5>
+                    
+                    {selectedContract.loanDetails && Object.keys(selectedContract.loanDetails).length > 0 ? (
+                      <div className="card">
+                        <div className="card-body">
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <h6>Loan Amount</h6>
+                              <p>${selectedContract.loanDetails.amount?.toLocaleString() || "Not provided"}</p>
+                            </div>
+                            <div className="col-md-6">
+                              <h6>Loan Provider</h6>
+                              <p>{selectedContract.loanDetails.provider || "Not provided"}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <h6>Loan Type</h6>
+                              <p>{selectedContract.loanDetails.type ? 
+                                 selectedContract.loanDetails.type.charAt(0).toUpperCase() + 
+                                 selectedContract.loanDetails.type.slice(1) : 
+                                 "Not provided"}</p>
+                            </div>
+                            <div className="col-md-6">
+                              <h6>Interest Rate</h6>
+                              <p>{selectedContract.loanDetails.interestRate ? 
+                                 `${selectedContract.loanDetails.interestRate}%` : 
+                                 "Not provided"}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="row">
+                            <div className="col-md-6">
+                              <h6>Approval Date</h6>
+                              <p>{selectedContract.loanDetails.approvalDate ? 
+                                 new Date(selectedContract.loanDetails.approvalDate).toLocaleDateString() : 
+                                 "Not provided"}</p>
+                            </div>
+                            <div className="col-md-6">
+                              <h6>Loan Status</h6>
+                              <p>
+                                <span className={`badge ${
+                                  selectedContract.loanDetails.status === "approved" ? "bg-success" :
+                                  selectedContract.loanDetails.status === "pre-approved" ? "bg-info" :
+                                  selectedContract.loanDetails.status === "pending" ? "bg-warning" :
+                                  selectedContract.loanDetails.status === "denied" ? "bg-danger" : "bg-secondary"
+                                }`}>
+                                  {selectedContract.loanDetails.status ? 
+                                   selectedContract.loanDetails.status.charAt(0).toUpperCase() + 
+                                   selectedContract.loanDetails.status.slice(1) : 
+                                   "Not provided"}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="alert alert-info">
+                        No loan details have been provided for this contract.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Show existing signatures if contract is not pending owner approval */}
+                {selectedContract.status !== "pending_owner" && (
+                  <DisplaySignatures contract={selectedContract} />
+                )}
+
+                {/* Signature section when pending owner signature */}
+                {selectedContract.status === "pending_owner" && (
+                  <div className="signature-section mb-4">
+                    <h5 className="mb-3">Your Signature</h5>
+                    <p className="text-muted mb-3">Please sign below to finalize this contract.</p>
+                    
+                    <SignaturePad onSignatureChange={handleSignatureChange} />
+                    
+                    {signature && (
+                      <div className="mt-3">
+                        <div className="alert alert-success">
+                          <small>Signature captured successfully. You can proceed with signing the contract.</small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {selectedContract.status === "pending_owner" && (
+                  <div className="alert alert-warning">
+                    <strong>Action Required:</strong> Please review the contract carefully before signing.
+                  </div>
+                )}
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowContractDetails(false)}
+                  >
+                    Close
+                  </button>
+
+                  {selectedContract.status === "pending_owner" && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-danger me-2"
+                        onClick={() => handleRejectContract(selectedContract._id)}
+                      >
+                        Reject Contract
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        onClick={() => handleSignContract(selectedContract._id)}
+                        disabled={!signature}
+                      >
+                        Sign Contract
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

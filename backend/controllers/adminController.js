@@ -92,3 +92,59 @@ exports.getPendingOwners = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+exports.getAllOwners = async (req, res) => {
+  try {
+    const status = req.query.status || { $in: ["pending", "approved", "rejected"] };
+    
+    const owners = await Owner.find({ status })
+      .select("-password -SSN") // Exclude sensitive information
+      .sort({ name: 1 });
+
+    res.json(owners);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getAllRealtors = async (req, res) => {
+  try {
+    const status = req.query.status || { $in: ["pending", "approved", "rejected"] };
+    
+    const realtors = await Realtor.find({ status })
+      .select("-password") // Exclude sensitive information
+      .sort({ name: 1 });
+
+    res.json(realtors);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.deleteOwner = async (req, res) => {
+  try {
+    const owner = await Owner.findByIdAndDelete(req.params.id);
+    
+    if (!owner) {
+      return res.status(404).json({ message: "Owner not found" });
+    }
+    
+    res.json({ message: "Owner deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.deleteRealtor = async (req, res) => {
+  try {
+    const realtor = await Realtor.findByIdAndDelete(req.params.id);
+    
+    if (!realtor) {
+      return res.status(404).json({ message: "Realtor not found" });
+    }
+    
+    res.json({ message: "Realtor deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

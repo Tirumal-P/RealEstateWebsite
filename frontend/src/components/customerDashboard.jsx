@@ -1,12 +1,25 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import api from "../api/axiosInstance";
+import SignaturePad from "../common/SignaturePad";
 
 const CustomerPage = () => {
   const [activeTab, setActiveTab] = useState("browseProperties");
   const [properties, setProperties] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedContract, setSelectedContract] = useState(null);
+  const [showContractDetails, setShowContractDetails] = useState(false);
+  const [loanDetails, setLoanDetails] = useState({
+    amount: "",
+    provider: "",
+    type: "",
+    interestRate: "",
+    approvalDate: "",
+    status: "",
+  });
+  const [signature, setSignature] = useState(null);
   const { token, userId, logout } = useAuth();
 
   // Fetch properties and applications on component mount
@@ -27,8 +40,17 @@ const CustomerPage = () => {
           }
         );
 
+        // Fetch customer's contracts
+        const contractsResponse = await api.get(
+          `/customer/${userId}/contracts`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
         setProperties(propertiesResponse.data || []);
-        setApplications(applicationsResponse.data || []);
+        setApplications(applicationsResponse.data.data || []);
+        setContracts(contractsResponse.data.data || []);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -186,6 +208,149 @@ const CustomerPage = () => {
     }
   };
 
+  // Handle contract viewing
+
+  const handleViewContract = (contract) => {
+    setSelectedContract(contract);
+
+    setShowContractDetails(true);
+  };
+
+  // Handle loan details change
+  const handleLoanDetailsChange = (e) => {
+    const { name, value } = e.target;
+    setLoanDetails((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  //handle signature
+  const handleSignatureChange = (signatureData) => {
+    setSignature(signatureData);
+  };
+
+  // Handle signing a contract
+
+  const handleSignContract = async (contractId) => {
+    try {
+      // Check if signature exists
+      if (!signature) {
+        alert("Please sign the contract before submitting.");
+        return;
+      }
+      // Create payload with loan details if provided
+      const payload = {signature: signature,};
+      console.log(loanDetails);
+
+      // If this is a sale contract and loan details are provided, include them
+      if (loanDetails) {
+        payload.loanDetails = {
+          amount: parseFloat(loanDetails.amount),
+          provider: loanDetails.provider,
+          type: loanDetails.type,
+          interestRate: parseFloat(loanDetails.interestRate),
+          approvalDate: loanDetails.approvalDate,
+          status: loanDetails.status
+        };
+      }
+
+      // Send request to sign the contract with loan details
+      const response = await api.put(
+        `/customer/${userId}/contracts/${contractId}/sign`,
+        payload,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success) {
+        // Update contract status locally
+        setContracts(
+          contracts.map((contract) =>
+            contract._id === contractId
+              ? {
+                  ...contract,
+                  status: "pending_owner",
+                  signatures: { ...contract.signatures, customer: userId },
+                  loanDetails: payload.loanDetails || contract.loanDetails,
+                }
+              : contract
+          )
+        );
+
+        alert(
+          "Contract signed successfully! It has been sent to the owner for signature."
+        );
+        setShowContractDetails(false);
+
+        // Reset loan details
+        setLoanDetails({
+          amount: "",
+          provider: "",
+          type: "",
+          interestRate: "",
+          approvalDate: "",
+          status: "",
+        });
+      }
+    } catch (error) {
+      console.error("Error signing contract:", error);
+      alert(
+        `Failed to sign contract: ${
+          error.response?.data?.message || error.message
+        }`
+      );
+    }
+  };
+
+  // Handle rejecting a contract
+
+  const handleRejectContract = async (contractId) => {
+    try {
+      // Confirm rejection
+
+      const confirmed = window.confirm(
+        "Are you sure you want to reject this contract? This action cannot be undone."
+      );
+
+      if (!confirmed) return;
+
+      // Send request to reject the contract
+
+      const response = await api.put(
+        `/customer/${userId}/contracts/${contractId}/reject`,
+
+        {},
+
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data.success) {
+        // Update contract status locally
+        setContracts(
+          contracts.map((contract) =>
+            contract._id === contractId
+              ? { ...contract, status: "cancelled" }
+              : contract
+          )
+        );
+        alert("Contract rejected successfully.");
+        setShowContractDetails(false);
+      }
+    } catch (error) {
+      console.error("Error rejecting contract:", error);
+
+      alert(
+        `Failed to reject contract: ${
+          error.response?.data?.message || error.message
+        }`
+      );
+    }
+  };
+
   // Handle property filtering (could be expanded later)
   const filterAvailableProperties = () => {
     return properties.filter((property) => property.status === "available");
@@ -198,6 +363,54 @@ const CustomerPage = () => {
     if (confirmLogout) {
       logout();
       // Redirect is handled by useAuth hook
+    }
+  };
+
+  // Get contract status label
+
+  const getContractStatusLabel = (status) => {
+    switch (status) {
+      case "pending_customer":
+        return "Waiting for Your Approval";
+
+      case "pending_owner":
+        return "Waiting for Owner Approval";
+
+      case "active":
+        return "Active";
+
+      case "completed":
+        return "Completed";
+
+      case "cancelled":
+        return "Cancelled";
+
+      default:
+        return "Pending";
+    }
+  };
+
+  // Get contract status badge color
+
+  const getContractStatusColor = (status) => {
+    switch (status) {
+      case "pending_customer":
+        return "warning";
+
+      case "pending_owner":
+        return "info";
+
+      case "active":
+        return "success";
+
+      case "completed":
+        return "secondary";
+
+      case "cancelled":
+        return "danger";
+
+      default:
+        return "secondary";
     }
   };
 
@@ -603,16 +816,525 @@ const CustomerPage = () => {
           </div>
         )}
 
-        {/* Contracts Tab (Placeholder for now) */}
+        {/* Contracts Tab */}
+
         {activeTab === "contracts" && (
           <div className="tab-pane active">
             <h2 className="mb-4">My Contracts</h2>
-            <div className="alert alert-info">
-              Contract functionality will be available soon. Stay tuned!
-            </div>
+
+            {loading ? (
+              <div className="text-center">
+                <div className="spinner-border" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            ) : contracts && contracts.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead className="table-light">
+                    <tr>
+                      <th>Property</th>
+                      <th>Type</th>
+                      <th>Created Date</th>
+                      <th>Start Date</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {contracts.map((contract) => (
+                      <tr key={contract._id}>
+                        <td>{contract.property?.name || "Unknown Property"}</td>
+                        <td>
+                          {contract.type === "rental" ? "Rental" : "Sale"}
+                        </td>
+                        <td>
+                          {new Date(contract.contractDate).toLocaleDateString()}
+                        </td>
+                        <td>
+                          {new Date(contract.startDate).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge bg-${getContractStatusColor(
+                              contract.status
+                            )}`}
+                          >
+                            {getContractStatusLabel(contract.status)}
+                          </span>
+                        </td>
+
+                        <td>
+                          <button
+                            className="btn btn-sm btn-primary"
+                            onClick={() => handleViewContract(contract)}
+                          >
+                            View Contract
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="alert alert-info">
+                You don't have any contracts yet.
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Contract Details Modal */}
+
+      {/* Contract Details Modal */}
+      {showContractDetails && selectedContract && (
+        <div
+          className="modal"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {selectedContract.type === "rental" ? "Rental" : "Sale"}{" "}
+                  Contract
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowContractDetails(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Property</h6>
+                    <p>
+                      {selectedContract.property?.name || "Unknown Property"}
+                    </p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Status</h6>
+                    <span
+                      className={`badge bg-${getContractStatusColor(
+                        selectedContract.status
+                      )}`}
+                    >
+                      {getContractStatusLabel(selectedContract.status)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Contract Date</h6>
+                    <p>
+                      {new Date(
+                        selectedContract.contractDate
+                      ).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Contract Type</h6>
+                    <p>
+                      {selectedContract.type === "rental"
+                        ? "Rental Agreement"
+                        : "Sales Contract"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Start Date</h6>
+                    <p>
+                      {new Date(
+                        selectedContract.startDate
+                      ).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>End Date</h6>
+                    <p>
+                      {new Date(selectedContract.endDate).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>
+                      {selectedContract.type === "rental"
+                        ? "Monthly Rent"
+                        : "Sale Price"}
+                    </h6>
+                    <p>
+                      ${selectedContract.salePrice?.toLocaleString() || "0"}
+                    </p>
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Deposit Amount</h6>
+                    <p>
+                      ${selectedContract.depositAmount?.toLocaleString() || "0"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mb-4">
+                  <h6>Payment Terms</h6>
+                  <p>{selectedContract.paymentTerms || "Not specified"}</p>
+                </div>
+
+                {/* Loan Details Section - Only shown for sale contracts */}
+                {selectedContract.type === "sale" && (
+                  <div className="loan-details-section mb-4">
+                    <h5 className="mb-3">Loan Details</h5>
+
+                    {selectedContract.status === "pending_customer" ? (
+                      <div>
+                        <div className="alert alert-warning mb-3">
+                          <strong>Action Required:</strong> Please complete the
+                          loan details below before signing the contract.
+                        </div>
+
+                        <form>
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <label className="form-label">Loan Amount</label>
+                              <div className="input-group">
+                                <span className="input-group-text">$</span>
+                                <input
+                                  type="number"
+                                  className="form-control"
+                                  name="amount"
+                                  value={loanDetails.amount}
+                                  onChange={handleLoanDetailsChange}
+                                  required
+                                />
+                              </div>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">
+                                Loan Provider
+                              </label>
+                              <input
+                                type="text"
+                                className="form-control"
+                                name="provider"
+                                value={loanDetails.provider}
+                                onChange={handleLoanDetailsChange}
+                                placeholder="Bank or mortgage company name"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <label className="form-label">Loan Type</label>
+                              <select
+                                className="form-select"
+                                name="type"
+                                value={loanDetails.type}
+                                onChange={handleLoanDetailsChange}
+                                required
+                              >
+                                <option value="">Select loan type</option>
+                                <option value="conventional">
+                                  Conventional
+                                </option>
+                                <option value="fha">FHA</option>
+                                <option value="va">VA</option>
+                                <option value="usda">USDA</option>
+                                <option value="jumbo">Jumbo</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">
+                                Interest Rate (%)
+                              </label>
+                              <input
+                                type="number"
+                                className="form-control"
+                                name="interestRate"
+                                value={loanDetails.interestRate}
+                                onChange={handleLoanDetailsChange}
+                                step="0.01"
+                                min="0"
+                                max="20"
+                                required
+                              />
+                            </div>
+                          </div>
+
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <label className="form-label">
+                                Approval Date
+                              </label>
+                              <input
+                                type="date"
+                                className="form-control"
+                                name="approvalDate"
+                                value={loanDetails.approvalDate}
+                                onChange={handleLoanDetailsChange}
+                                required
+                              />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Loan Status</label>
+                              <select
+                                className="form-select"
+                                name="status"
+                                value={loanDetails.status}
+                                onChange={handleLoanDetailsChange}
+                                required
+                              >
+                                <option value="">Select status</option>
+                                <option value="pre-approved">
+                                  Pre-approved
+                                </option>
+                                <option value="approved">Fully Approved</option>
+                                <option value="pending">
+                                  Approval Pending
+                                </option>
+                                <option value="denied">Denied</option>
+                              </select>
+                            </div>
+                          </div>
+                        </form>
+                      </div>
+                    ) : selectedContract.loanDetails &&
+                      Object.keys(selectedContract.loanDetails).length > 0 ? (
+                      <div className="card">
+                        <div className="card-body">
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <h6>Loan Amount</h6>
+                              <p>
+                                $
+                                {selectedContract.loanDetails.amount?.toLocaleString() ||
+                                  "Not provided"}
+                              </p>
+                            </div>
+                            <div className="col-md-6">
+                              <h6>Loan Provider</h6>
+                              <p>
+                                {selectedContract.loanDetails.provider ||
+                                  "Not provided"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="row mb-3">
+                            <div className="col-md-6">
+                              <h6>Loan Type</h6>
+                              <p>
+                                {selectedContract.loanDetails.type
+                                  ? selectedContract.loanDetails.type
+                                      .charAt(0)
+                                      .toUpperCase() +
+                                    selectedContract.loanDetails.type.slice(1)
+                                  : "Not provided"}
+                              </p>
+                            </div>
+                            <div className="col-md-6">
+                              <h6>Interest Rate</h6>
+                              <p>
+                                {selectedContract.loanDetails.interestRate
+                                  ? `${selectedContract.loanDetails.interestRate}%`
+                                  : "Not provided"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="row">
+                            <div className="col-md-6">
+                              <h6>Approval Date</h6>
+                              <p>
+                                {selectedContract.loanDetails.approvalDate
+                                  ? new Date(
+                                      selectedContract.loanDetails.approvalDate
+                                    ).toLocaleDateString()
+                                  : "Not provided"}
+                              </p>
+                            </div>
+                            <div className="col-md-6">
+                              <h6>Loan Status</h6>
+                              <p>
+                                <span
+                                  className={`badge ${
+                                    selectedContract.loanDetails.status ===
+                                    "approved"
+                                      ? "bg-success"
+                                      : selectedContract.loanDetails.status ===
+                                        "pre-approved"
+                                      ? "bg-info"
+                                      : selectedContract.loanDetails.status ===
+                                        "pending"
+                                      ? "bg-warning"
+                                      : selectedContract.loanDetails.status ===
+                                        "denied"
+                                      ? "bg-danger"
+                                      : "bg-secondary"
+                                  }`}
+                                >
+                                  {selectedContract.loanDetails.status
+                                    ? selectedContract.loanDetails.status
+                                        .charAt(0)
+                                        .toUpperCase() +
+                                      selectedContract.loanDetails.status.slice(
+                                        1
+                                      )
+                                    : "Not provided"}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="alert alert-info">
+                        No loan details have been provided for this contract.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Contract Status Section */}
+                <div className="contract-status-section mb-4">
+                  <h5 className="mb-3">Contract Status</h5>
+                  <div className="row">
+                    <div className="col-md-6">
+                      <h6>Current Status</h6>
+                      <p>
+                        <span
+                          className={`badge bg-${getContractStatusColor(
+                            selectedContract.status
+                          )}`}
+                        >
+                          {getContractStatusLabel(selectedContract.status)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="row mt-3">
+                    <div className="col-md-4">
+                      <h6>Realtor Signature</h6>
+                      <p>
+                        <span className="badge bg-success">Signed</span>
+                      </p>
+                    </div>
+                    <div className="col-md-4">
+                      <h6>Your Signature</h6>
+                      <p>
+                        {selectedContract.signatures?.customer ? (
+                          <span className="badge bg-success">Signed</span>
+                        ) : (
+                          <span className="badge bg-warning">
+                            Not signed yet
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="col-md-4">
+                      <h6>Owner Signature</h6>
+                      <p>
+                        {selectedContract.signatures?.owner ? (
+                          <span className="badge bg-success">Signed</span>
+                        ) : (
+                          <span className="badge bg-warning">
+                            Not signed yet
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedContract.status === "pending_customer" && (
+                  <div className="alert alert-warning">
+                    <strong>Action Required:</strong> Please review the contract
+                    terms carefully.
+                    {selectedContract.type === "sale"
+                      ? " Complete the loan details and sign"
+                      : " Sign"}{" "}
+                    this contract to proceed further.
+                  </div>
+                )}
+
+                {selectedContract.status === "pending_customer" && (
+                  <div className="signature-section mb-4">
+                    <h5 className="mb-3">Your Signature</h5>
+                    <p className="text-muted mb-3">
+                      Please sign below to indicate your acceptance of this
+                      contract.
+                    </p>
+
+                    <SignaturePad onSignatureChange={handleSignatureChange} />
+
+                    {signature && (
+                      <div className="mt-3">
+                        <div className="alert alert-success">
+                          <small>
+                            Signature captured successfully. You can proceed
+                            with signing the contract.
+                          </small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowContractDetails(false)}
+                  >
+                    Close
+                  </button>
+
+                  {selectedContract.status === "pending_customer" && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-danger me-2"
+                        onClick={() =>
+                          handleRejectContract(selectedContract._id)
+                        }
+                      >
+                        Reject Contract
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        onClick={() => handleSignContract(selectedContract._id)}
+                        disabled={
+                          !loanDetails.amount ||
+                          !loanDetails.provider ||
+                          !loanDetails.type ||
+                          !loanDetails.interestRate ||
+                          !loanDetails.approvalDate ||
+                          !loanDetails.status ||
+                          !signature
+                        }
+                      >
+                        Sign Contract
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

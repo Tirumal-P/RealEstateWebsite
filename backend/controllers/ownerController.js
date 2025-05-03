@@ -97,11 +97,11 @@ exports.createProperty = async (req, res) => {
 
     // Populate realtor details before sending response
     await savedProperty.populate("realtor", "name email phone");
-
+    console.log(id,)
     // Update owner's properties array
     await Owner.findByIdAndUpdate(
       id,
-      { $push: { properties: savedProperty._id } },
+      { $push: { listedProperties: savedProperty._id } },
       { new: true }
     );
 

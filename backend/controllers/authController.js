@@ -1,9 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Admin = require("../models/Admin");
-const Customer = require("../models/Customer");
-const Owner = require("../models/Owner");
-const Realtor = require("../models/Realtor");
 
 // Admin Login
 exports.adminLogin = async (req, res) => {
@@ -89,9 +86,8 @@ exports.userSignup = (model, role) => async (req, res) => {
     address,
     SSN,
   } = req.body;
-
   try {
-    // Check if email already exists in the collection
+    // Check if email already exists
     const existingUser = await model.findOne({ email });
     if (existingUser) {
       return res.status(400).json({
@@ -108,52 +104,59 @@ exports.userSignup = (model, role) => async (req, res) => {
       });
     }
 
-    // Build new user object
+    // Build base user object
     const newUserData = {
       email,
       password: await bcrypt.hash(password, 10),
       phone: phone || "",
       name,
-      ...(SSN && ["owner", "customer"].includes(role) && { SSN: SSN }),
+      address,
+      // Add SSN only for owner/customer
+      ...(SSN && ["owner", "customer"].includes(role) && { SSN }),
     };
 
-    if (role == "customer" || role == "owner") {
-      newUserData.dob = dob;
-      newUserData.occupation = occupation;
-      newUserData.annualIncome = annualIncome;
-      newUserData.address = address;
+    // Add role-specific fields
+    if (["customer", "owner"].includes(role)) {
+      Object.assign(newUserData, {
+        dob,
+        occupation,
+        annualIncome,
+      });
     }
 
-    // Set status to pending for privileged roles
+    // Set approval status
     if (["owner", "realtor"].includes(role)) {
       newUserData.status = "pending";
     }
 
-    // Create and save the user
+    // Create and save user
     const newUser = await model.create(newUserData);
 
-    // For roles requiring approval, don't return token
+    // Handle response for privileged roles
     if (["owner", "realtor"].includes(role)) {
       return res.status(201).json({
+        success: true,
         message: "Account created. Pending admin approval.",
-        user: {
+        data: {
           id: newUser._id,
           name: newUser.name,
           email: newUser.email,
           phone: newUser.phone,
           role,
+          ...(role === "realtor" && { address: newUser.address }),
         },
       });
     }
 
-    // Else, issue token for customer
+    // Generate token for immediate customer login
     const token = jwt.sign({ id: newUser._id, role }, process.env.JWT_SECRET, {
       expiresIn: "1d",
     });
 
     res.status(201).json({
+      success: true,
       token,
-      user: {
+      data: {
         id: newUser._id,
         name: newUser.name,
         email: newUser.email,

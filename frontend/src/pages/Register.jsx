@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { Form, Button, Alert, Row, Col } from "react-bootstrap";
 import api from "../api/axiosInstance";
 
-
 const Register = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -14,6 +13,7 @@ const Register = () => {
     confirmPassword: "",
     userType: "customer",
     agreeTerms: false,
+    // Customer/owner specific fields
     dob: "",
     occupation: "",
     annualIncome: "",
@@ -28,7 +28,6 @@ const Register = () => {
   // Check password match whenever password or confirmPassword changes
   useEffect(() => {
     // Only validate if both fields have values
-
     if (formData.password && formData.confirmPassword) {
       setPasswordMatch(formData.password === formData.confirmPassword);
     } else {
@@ -38,31 +37,24 @@ const Register = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    
     // For phone field, only allow numbers
-
     if (name === "phone") {
       const numericValue = value.replace(/[^0-9]/g, "");
-
       setFormData((prevState) => ({
         ...prevState,
-
         [name]: numericValue,
       }));
-
       return;
     }
 
     // For annual income field, only allow numbers
-
     if (name === "annualIncome") {
       const numericValue = value.replace(/[^0-9]/g, "");
-
       setFormData((prevState) => ({
         ...prevState,
-
         [name]: numericValue,
       }));
-
       return;
     }
 
@@ -88,57 +80,72 @@ const Register = () => {
       return;
     }
 
-    // Additional validation for required fields
+    // Determine required fields based on user type
+    let requiredFields = ["fullName", "email", "phone", "password", "address"];
+    
+    if (formData.userType === "customer") {
+      requiredFields = [
+        ...requiredFields,
+        "dob",
+        "SSN",
+      ];
+    } else if (formData.userType === "realtor") {
+      // Realtor only needs the basic fields which are already included
+    } else if (formData.userType === "owner") {
+      // Owner has same requirements as customer
+      requiredFields = [
+        ...requiredFields,
+        "dob",
+        "SSN",
+      ];
+    }
 
-    const requiredFields = [
-      "fullName",
-      "email",
-      "phone",
-      "password",
-      "dob",
-      "address",
-      "SSN",
-    ];
-
+    // Validate required fields
     for (const field of requiredFields) {
       if (!formData[field]) {
         setError(
           `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
         );
-
         return;
       }
     }
 
-    // Validate SSN format (for US: XXX-XX-XXXX)
-
-    const ssnRegex = /^\d{3}-\d{2}-\d{4}$/;
-
-    if (!ssnRegex.test(formData.SSN)) {
-      setError("SSN must be in format XXX-XX-XXXX");
-
-      return;
+    // Validate SSN format (for US: XXX-XX-XXXX) - only for customers and owners
+    if (["customer", "owner"].includes(formData.userType) && formData.SSN) {
+      const ssnRegex = /^\d{3}-\d{2}-\d{4}$/;
+      if (!ssnRegex.test(formData.SSN)) {
+        setError("SSN must be in format XXX-XX-XXXX");
+        return;
+      }
     }
 
     setLoading(true);
 
     try {
       // Build API endpoint based on userType
-      const endpoint = `/auth/signup/${
-        formData.userType
-      }`;
+      const endpoint = `/auth/signup/${formData.userType}`;
 
-      const response = await api.post(endpoint, {
+      // Create payload based on user type
+      let payload = {
         name: formData.fullName,
         email: formData.email,
         phone: formData.phone,
         password: formData.password,
-        dob: formData.dob,
-        occupation: formData.occupation,
-        annualIncome: formData.annualIncome,
         address: formData.address,
-        SSN: formData.SSN
-      });
+      };
+
+      // Add customer/owner-specific fields
+      if (["customer", "owner"].includes(formData.userType)) {
+        payload = {
+          ...payload,
+          dob: formData.dob,
+          occupation: formData.occupation,
+          annualIncome: formData.annualIncome,
+          SSN: formData.SSN
+        };
+      }
+
+      const response = await api.post(endpoint, payload);
 
       if (["owner", "realtor"].includes(formData.userType)) {
         alert(
@@ -161,7 +168,6 @@ const Register = () => {
   };
 
   // Function to get password feedback styling
-
   const getPasswordFeedback = () => {
     if (passwordMatch === null) return null;
 
@@ -182,6 +188,26 @@ const Register = () => {
       </div>
 
       {error && <Alert variant="danger">{error}</Alert>}
+
+      {/* User Type Selection at the top */}
+      <Form.Group className="mb-4" controlId="userType">
+        <Form.Label>I want to register as a</Form.Label>
+        <Form.Select
+          name="userType"
+          value={formData.userType}
+          onChange={handleChange}
+        >
+          <option value="customer">Customer</option>
+          <option value="owner">Property Owner</option>
+          <option value="realtor">Realtor</option>
+        </Form.Select>
+        {["owner", "realtor"].includes(formData.userType) && (
+          <Form.Text className="text-muted">
+            Note: {formData.userType === "owner" ? "Owner" : "Realtor"}{" "}
+            accounts require admin approval
+          </Form.Text>
+        )}
+      </Form.Group>
 
       <Form onSubmit={handleSubmit}>
         <Row>
@@ -229,18 +255,21 @@ const Register = () => {
             </Form.Group>
           </Col>
 
-          <Col md={6}>
-            <Form.Group className="mb-3" controlId="dob">
-              <Form.Label>Date of Birth</Form.Label>
-              <Form.Control
-                type="date"
-                name="dob"
-                value={formData.dob}
-                onChange={handleChange}
-                required
-              />
-            </Form.Group>
-          </Col>
+          {/* Only show date of birth for customers and owners */}
+          {["customer", "owner"].includes(formData.userType) && (
+            <Col md={6}>
+              <Form.Group className="mb-3" controlId="dob">
+                <Form.Label>Date of Birth</Form.Label>
+                <Form.Control
+                  type="date"
+                  name="dob"
+                  value={formData.dob}
+                  onChange={handleChange}
+                  required
+                />
+              </Form.Group>
+            </Col>
+          )}
         </Row>
 
         <Form.Group className="mb-3" controlId="address">
@@ -256,49 +285,52 @@ const Register = () => {
           />
         </Form.Group>
 
-        <Row>
-          <Col md={6}>
-            <Form.Group className="mb-3" controlId="occupation">
-              <Form.Label>Occupation</Form.Label>
+        {/* Only show these fields for customers and owners */}
+        {["customer", "owner"].includes(formData.userType) && (
+          <>
+            <Row>
+              <Col md={6}>
+                <Form.Group className="mb-3" controlId="occupation">
+                  <Form.Label>Occupation</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="occupation"
+                    value={formData.occupation}
+                    onChange={handleChange}
+                    placeholder="Enter your occupation"
+                  />
+                </Form.Group>
+              </Col>
+
+              <Col md={6}>
+                <Form.Group className="mb-3" controlId="annualIncome">
+                  <Form.Label>Annual Income</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="annualIncome"
+                    value={formData.annualIncome}
+                    onChange={handleChange}
+                    placeholder="Enter annual income (numbers only)"
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            <Form.Group className="mb-3" controlId="SSN">
+              <Form.Label>Social Security Number (SSN)</Form.Label>
               <Form.Control
                 type="text"
-                name="occupation"
-                value={formData.occupation}
+                name="SSN"
+                value={formData.SSN}
                 onChange={handleChange}
-                placeholder="Enter your occupation"
+                placeholder="XXX-XX-XXXX"
                 required
+                pattern="^\d{3}-\d{2}-\d{4}$"
               />
+              <Form.Text className="text-muted">Format: XXX-XX-XXXX</Form.Text>
             </Form.Group>
-          </Col>
-
-          <Col md={6}>
-            <Form.Group className="mb-3" controlId="annualIncome">
-              <Form.Label>Annual Income</Form.Label>
-              <Form.Control
-                type="text"
-                name="annualIncome"
-                value={formData.annualIncome}
-                onChange={handleChange}
-                placeholder="Enter annual income (numbers only)"
-                required
-              />
-            </Form.Group>
-          </Col>
-        </Row>
-
-        <Form.Group className="mb-3" controlId="SSN">
-          <Form.Label>Social Security Number (SSN)</Form.Label>
-          <Form.Control
-            type="text"
-            name="SSN"
-            value={formData.SSN}
-            onChange={handleChange}
-            placeholder="XXX-XX-XXXX"
-            required
-            pattern="^\d{3}-\d{2}-\d{4}$"
-          />
-          <Form.Text className="text-muted">Format: XXX-XX-XXXX</Form.Text>
-        </Form.Group>
+          </>
+        )}
 
         <Row>
           <Col md={6}>
@@ -339,28 +371,10 @@ const Register = () => {
                 isValid={passwordMatch === true}
                 isInvalid={passwordMatch === false}
               />
+              {getPasswordFeedback()}
             </Form.Group>
           </Col>
         </Row>
-
-        <Form.Group className="mb-4" controlId="userType">
-          <Form.Label>I want to register as a</Form.Label>
-          <Form.Select
-            name="userType"
-            value={formData.userType}
-            onChange={handleChange}
-          >
-            <option value="customer">Customer</option>
-            <option value="owner">Property Owner</option>
-            <option value="realtor">Realtor</option>
-          </Form.Select>
-          {["owner", "realtor"].includes(formData.userType) && (
-            <Form.Text className="text-muted">
-              Note: {formData.userType === "owner" ? "Owner" : "Realtor"}{" "}
-              accounts require admin approval
-            </Form.Text>
-          )}
-        </Form.Group>
 
         <Form.Group className="mb-3" controlId="agreeTerms">
           <Form.Check

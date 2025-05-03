@@ -5,86 +5,48 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-// import MainLayout from './layouts/MainLayout';
-// import DashboardLayout from './layouts/DashboardLayout';
 import AuthLayout from "./layouts/AuthLayout";
 import { useAuth } from "./hooks/useAuth";
 
 // Pages
-// import Home from './pages/Home';
-// import About from './pages/About';
-// import Contact from './pages/Contact';
 import Login from "./pages/Login/Login";
 import Register from "./pages/Register";
 import AdminLogin from "./pages/Admin/AdminLogin";
-// import PropertyListingPage from './pages/PropertyListingPage';
-// import PropertyDetailPage from './pages/PropertyDetailPage';
-// import ApplicationPage from './pages/ApplicationPage';
-// import DashboardPage from './pages/DashboardPage';
-// import ContractPage from './pages/ContractPage';
-// import NotFound from './pages/NotFound';
 
 import "bootstrap/dist/css/bootstrap.min.css";
-import AdminDashboard from "./components/admin/AdminDashhboard";
-import OwnersPage from "./components/owner/ownerDashboard";
-import CustomerPage from "./components/customerDashboard";
-// import './assets/css/styles.css';
+
+// Lazy load dashboard components to avoid them being rendered unnecessarily
+const AdminDashboard = React.lazy(() => import("./components/admin/AdminDashhboard"));
+const OwnersPage = React.lazy(() => import("./components/owner/ownerDashboard"));
+const CustomerPage = React.lazy(() => import("./components/customerDashboard"));
+const RealtorPage = React.lazy(() => import("./components/realtorDashboard"));
 
 function App() {
-  const AdminRoute = ({ children }) => {
-    const { token: isAuthenticated, user: userType } = useAuth();
-
-    if (!isAuthenticated) {
-      // Redirect to login if not authenticated
-      return <Navigate to="/admin" replace />;
-    }
-
-    if (userType !== "admin") {
-      // Redirect to home or show unauthorized access
-      return <Navigate to="/" replace />;
-    }
-
-    return children;
-  };
-
-  //owner protected route
-  const OwnerRoute = ({ children }) => {
-    const { token: isAuthenticated, user: userType } = useAuth();
-
-    if (!isAuthenticated) {
+  // Create a generic protected route component to avoid duplicate evaluation logic
+  const ProtectedRoute = ({ userType: requiredUserType, children }) => {
+    const { token, user } = useAuth();
+    
+    // Check if authenticated
+    if (!token) {
       return <Navigate to="/login" replace />;
     }
-
-    if (userType !== "owner") {
-      return <Navigate to="/" replace />;
-    }
-
-    return children;
-  };
-
-  //Customer protected route
-  const CustomerRoute = ({ children }) => {
-    const { token: isAuthenticated, user: userType } = useAuth();
-
-    if (!isAuthenticated || userType !== "customer") {
+    
+    // Check if user has the correct role
+    if (user !== requiredUserType) {
       return <Navigate to="/login" replace />;
     }
-
-    return children;
+    
+    // Use Suspense for lazy-loaded components
+    return (
+      <React.Suspense fallback={<div className="text-center p-5">Loading...</div>}>
+        {children}
+      </React.Suspense>
+    );
   };
 
   return (
     <Router>
       <Routes>
-        {/* Public routes with MainLayout */}
-        {/* <Route path="/" element={<MainLayout />}>
-          <Route index element={<Home />} />
-          <Route path="about" element={<About />} />
-          <Route path="contact" element={<Contact />} />
-          <Route path="properties" element={<PropertyListingPage />} />
-          <Route path="properties/:id" element={<PropertyDetailPage />} />
-        </Route> */}
-
         {/* Auth routes */}
         <Route path="/" element={<AuthLayout />}>
           <Route index element={<Navigate to="/login" />} />
@@ -92,42 +54,49 @@ function App() {
           <Route path="register" element={<Register />} />
           <Route path="admin" element={<AdminLogin />} />
         </Route>
+        
+        {/* Admin Dashboard - protected */}
         <Route
           path="/admin/dashboard"
           element={
-            <AdminRoute>
+            <ProtectedRoute userType="admin">
               <AdminDashboard />
-            </AdminRoute>
+            </ProtectedRoute>
           }
         />
+        
+        {/* Owner Dashboard - protected */}
         <Route
           path="/owner/dashboard"
           element={
-            <OwnerRoute>
+            <ProtectedRoute userType="owner">
               <OwnersPage />
-            </OwnerRoute>
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Customer Dashboard - protected */}
+        <Route
+          path="/customer/dashboard"
+          element={
+            <ProtectedRoute userType="customer">
+              <CustomerPage />
+            </ProtectedRoute>
           }
         />
 
         {/* Customer Dashboard - protected */}
         <Route
-          path="/customer/dashboard"
+          path="/realtor/dashboard"
           element={
-            <CustomerRoute>
-              <CustomerPage />
-            </CustomerRoute>
+            <ProtectedRoute userType="realtor">
+              <RealtorPage />
+            </ProtectedRoute>
           }
         />
 
-        {/* Dashboard routes - protected */}
-        {/* <Route path="/dashboard" element={<DashboardLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="application/:id" element={<ApplicationPage />} />
-          <Route path="contract/:id" element={<ContractPage />} />
-        </Route> */}
-
-        {/* 404 route */}
-        {/* <Route path="*" element={<NotFound />} /> */}
+        {/* Catch-all route - redirect to login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

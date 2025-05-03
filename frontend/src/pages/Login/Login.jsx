@@ -32,15 +32,10 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await api.post(
-        `/auth/${
-          formData.userType
-        }/login`,
-        {
-          email: formData.email,
-          password: formData.password,
-        }
-      );
+      const response = await api.post(`/auth/${formData.userType}/login`, {
+        email: formData.email,
+        password: formData.password,
+      });
 
       // For demo purposes - in real app, you'd validate with your backend
       if (response.status == 200) {
@@ -51,8 +46,10 @@ const Login = () => {
 
         if (formData.userType === "owner") {
           navigate("/owner/dashboard");
-        } else if(formData.userType === "customer") {
+        } else if (formData.userType === "customer") {
           navigate("/customer/dashboard");
+        } else if (formData.userType === "realtor") {
+          navigate("realtor/dashboard");
         }
       } else {
         setError("Invalid email or password");

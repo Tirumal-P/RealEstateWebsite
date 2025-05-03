@@ -11,12 +11,12 @@ const contractSchema = new mongoose.Schema({
   depositAmount: Number,
   paymentTerms: String,
   loanDetails: {
-    amount: Number,
-    provider: String,
-    type: String,
-    interestRate: Number,
-    approvalDate: Date,
-    status: String
+    amount: { type: Number },
+    provider: { type: String },
+    type: { type: String },
+    interestRate: { type: Number },
+    approvalDate: { type: Date },
+    status: { type: String }
   },
   owner: { type: mongoose.Schema.Types.ObjectId, ref: 'Owner', required: true },
   customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },

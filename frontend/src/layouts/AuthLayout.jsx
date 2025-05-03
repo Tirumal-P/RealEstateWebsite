@@ -13,10 +13,15 @@ const AuthLayout = () => {
     // Check user type and redirect accordingly
     console.log(isAuthenticated);
     console.log(userType);
-    if (userType === 'admin') {
+    if (userType === "admin") {
       return <Navigate to="/admin/dashboard" />;
+    } else if (userType === "owner") {
+      return <Navigate to="/owner/dashboard" />;
+    } else if (userType === "customer") {
+      return <Navigate to="/customer/dashboard" />;
+    } else if (userType === "realtor") {
+      return <Navigate to="/realtor/dashboard" />;
     }
-    return <Navigate to="/owner/dashboard" />;
   }
 
   return (
